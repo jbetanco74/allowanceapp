@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es" class="bg-gray-900 text-white">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Allowance Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .animate-enter {
+            animation: enter 0.5s ease-out;
+        }
+        @keyframes enter {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        /* Estilos para el input number */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4">
+
+    <div id="app" class="w-full max-w-md mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 space-y-6 animate-enter">
+        <!-- Encabezado -->
+        <div class="text-center">
+            <h1 class="text-3xl font-bold text-white">Weekly Allowance</h1>
+            <p id="currentDate" class="text-gray-400 text-sm"></p>
+        </div>
+
+        <!-- Resumen de Allowance -->
+        <div id="allowance-summary" class="bg-gray-700 p-5 rounded-xl text-center">
+            <p class="text-gray-400 text-sm font-medium">TOTAL ALLOWANCE THIS WEEK</p>
+            <p id="total-allowance" class="text-5xl font-bold text-white mt-2">$0.00</p>
+        </div>
+
+        <!-- Buckets -->
+        <div id="buckets" class="grid grid-cols-3 gap-3 text-center">
+            <div class="bg-green-500/20 text-green-300 p-3 rounded-lg">
+                <p class="text-xs font-bold">INVEST (20%)</p>
+                <p id="invest-bucket" class="text-lg font-semibold mt-1">$0.00</p>
+                <p class="text-xs text-green-400/70">Money that works for you, for the future.</p>
+            </div>
+            <div class="bg-orange-500/20 text-orange-300 p-3 rounded-lg">
+                <p class="text-xs font-bold">SAVE (30%)</p>
+                <p id="save-bucket" class="text-lg font-semibold mt-1">$0.00</p>
+                 <p class="text-xs text-orange-400/70">A suggested fund for your big goals. You decide.</p>
+            </div>
+            <div class="bg-red-500/20 text-red-300 p-3 rounded-lg">
+                <p class="text-xs font-bold">SPEND (50%)</p>
+                <p id="spend-bucket" class="text-lg font-semibold mt-1">$0.00</p>
+                <p class="text-xs text-red-400/70">Your budget for the week. You are in control.</p>
+            </div>
+        </div>
+
+        <!-- Formulario de Calificaciones -->
+        <div>
+            <h2 class="text-lg font-semibold mb-3 text-gray-200">Enter This Week's Grades (%)</h2>
+            <div id="grades-container" class="space-y-3">
+                <!-- Las materias se insertarán aquí dinámicamente -->
+            </div>
+        </div>
+        
+        <!-- Botón para Limpiar -->
+        <div class="pt-2">
+            <button id="clear-button" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200">
+                Clear Grades for Next Week
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmación -->
+    <div id="confirmation-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center animate-enter">
+            <h3 class="text-xl font-bold text-white mb-4">¿Estás seguro?</h3>
+            <p class="text-gray-400 mb-8">Esto borrará todas las calificaciones ingresadas. Esta acción no se puede deshacer.</p>
+            <div class="flex justify-center gap-4">
+                <button id="cancel-clear" class="w-full px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors">Cancelar</button>
+                <button id="confirm-clear" class="w-full px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const subjects = [
+                '3D Animation',
+                'Computer Science A - AP',
+                'Integrated Math II - A',
+                'Investigative Physics - A',
+                'Spanish Speakers II - A',
+                'World History - A',
+                'World Literature and Composition'
+            ];
+
+            const gradesContainer = document.getElementById('grades-container');
+            const totalAllowanceEl = document.getElementById('total-allowance');
+            const investBucketEl = document.getElementById('invest-bucket');
+            const saveBucketEl = document.getElementById('save-bucket');
+            const spendBucketEl = document.getElementById('spend-bucket');
+            const clearButton = document.getElementById('clear-button');
+            const currentDateEl = document.getElementById('currentDate');
+            
+            // Modal elements
+            const confirmationModal = document.getElementById('confirmation-modal');
+            const confirmClearBtn = document.getElementById('confirm-clear');
+            const cancelClearBtn = document.getElementById('cancel-clear');
+            
+            // Configuración del sistema
+            const baseAllowance = 80;
+            const bonuses = {
+                A: 15, // 90% y más
+                B: 10  // 80% a 89%
+            };
+            const bucketPercentages = {
+                invest: 0.20,
+                save: 0.30,
+                spend: 0.50
+            };
+
+            // Mostrar la fecha actual
+            const today = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            currentDateEl.textContent = today.toLocaleDateString('es-ES', options);
+
+            // Función para renderizar las materias
+            function renderSubjects() {
+                gradesContainer.innerHTML = '';
+                subjects.forEach((subject, index) => {
+                    const gradeValue = localStorage.getItem(`grade-${index}`) || '';
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center bg-gray-700/50 rounded-lg p-3';
+                    div.innerHTML = `
+                        <label for="grade-${index}" class="flex-1 text-gray-300 text-sm">${subject}</label>
+                        <input type="number" id="grade-${index}" value="${gradeValue}" min="0" max="100" placeholder="--" class="w-20 bg-gray-800 text-white text-center font-bold rounded-md p-2 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    `;
+                    gradesContainer.appendChild(div);
+                });
+            }
+
+            // Función para calcular el allowance
+            function calculateAllowance() {
+                let totalBonus = 0;
+                subjects.forEach((_, index) => {
+                    const input = document.getElementById(`grade-${index}`);
+                    const grade = parseFloat(input.value);
+                    
+                    if (!isNaN(grade)) {
+                        if (grade >= 90) {
+                            totalBonus += bonuses.A;
+                        } else if (grade >= 80) {
+                            totalBonus += bonuses.B;
+                        }
+                    }
+                });
+
+                const totalAllowance = baseAllowance + totalBonus;
+
+                // Actualizar la UI
+                totalAllowanceEl.textContent = formatCurrency(totalAllowance);
+                investBucketEl.textContent = formatCurrency(totalAllowance * bucketPercentages.invest);
+                saveBucketEl.textContent = formatCurrency(totalAllowance * bucketPercentages.save);
+                spendBucketEl.textContent = formatCurrency(totalAllowance * bucketPercentages.spend);
+            }
+
+            // Función para guardar las calificaciones y recalcular
+            function saveAndRecalculate(e) {
+                 if (e.target.tagName === 'INPUT') {
+                    const index = e.target.id.split('-')[1];
+                    localStorage.setItem(`grade-${index}`, e.target.value);
+                    calculateAllowance();
+                 }
+            }
+            
+            // Función para mostrar el modal de confirmación
+            function showClearConfirmation() {
+                confirmationModal.classList.remove('hidden');
+            }
+
+            // Función para ocultar el modal
+            function hideClearConfirmation() {
+                confirmationModal.classList.add('hidden');
+            }
+
+            // Función para limpiar
+            function clearGrades() {
+                subjects.forEach((_, index) => {
+                    localStorage.removeItem(`grade-${index}`);
+                });
+                renderSubjects();
+                calculateAllowance();
+                hideClearConfirmation();
+            }
+
+            // Función para formatear como moneda
+            function formatCurrency(amount) {
+                return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            }
+
+            // Event Listeners
+            gradesContainer.addEventListener('input', saveAndRecalculate);
+            clearButton.addEventListener('click', showClearConfirmation);
+            confirmClearBtn.addEventListener('click', clearGrades);
+            cancelClearBtn.addEventListener('click', hideClearConfirmation);
+            
+            // Inicialización
+            renderSubjects();
+            calculateAllowance();
+        });
+    </script>
+</body>
+</html>
